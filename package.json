@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "dev": "ts-node index.ts"
+  }, 
+  "dependencies": {
+    "discord-api-types": "^0.38.4",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
