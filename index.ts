@@ -1,5 +1,5 @@
 // Require the necessary discord.js classes
-import { ApplicationCommandType, CacheType, ChannelType, ChatInputCommandInteraction, Client, Collection, Events, GatewayIntentBits, GuildMember, GuildMemberRoleManager, Interaction, Message, MessageContextMenuCommandInteraction, MessageFlags, REST, Routes, TextChannel, UserContextMenuCommandInteraction } from "discord.js";
+import { ApplicationCommandType, CacheType, ChannelType, ChatInputCommandInteraction, Client, Collection, Events, GatewayIntentBits, GuildMember, GuildMemberRoleManager, Interaction, Message, MessageContextMenuCommandInteraction, MessageFlags, REST, Role, Routes, TextChannel, UserContextMenuCommandInteraction } from "discord.js";
 import 'dotenv/config'
 import { setTimeout } from "timers/promises";
 
@@ -12,6 +12,11 @@ const clientID = process.env.CLIENT_ID;
 if (clientID === undefined) {
     throw Error("CLIENT_ID is unset");
 }
+
+const groupRoleNames = ["AI", "MR", "VR", "IR", "システム", "インフラ"];
+const isGroupRole = (role: Role) => groupRoleNames.includes(role.name);
+const isB2Role = (role: Role) => role.name == "b2";
+const roleIsMatchedForAnswer = (role: Role, answer: string) => role.name == answer;
 
 // Create a new client instance
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
@@ -76,7 +81,7 @@ const commands: Command[] = [
 
             // Find b2 members
             const roles = await guild.roles.fetch();
-            const b2Role = roles.find(r => r.name == "b2");
+            const b2Role = roles.find(isB2Role);
 
             if (b2Role === undefined)
                 throw new Error("Failed to find b2 role");
@@ -114,10 +119,10 @@ const commands: Command[] = [
             const members = await guild.members.fetch();
             await guild.roles.fetch();
 
-            const b2Members = members.filter(member => member.roles.cache.find((role) => role.name === "b2"));
+            const b2Members = members.filter(member => member.roles.cache.find(isB2Role));
 
             const countGroupRoles = (member: GuildMember) =>
-                member.roles.cache.reduce((acc, role) => acc + Number(role.name.includes("グループ")), 0)
+                member.roles.cache.reduce((acc, role) => acc + Number(isGroupRole(role)), 0)
             const membersHasTooManyRoles = b2Members.filter(member => countGroupRoles(member) >= 2);
             const membersHasNoRoles = b2Members.filter(member => countGroupRoles(member) == 0);
 
@@ -155,14 +160,20 @@ ${toMentions(membersHasNoRoles)}`
             await interaction.reply({ content: "ロール付与を開始します。", flags: MessageFlags.Ephemeral });
 
             for (const answer of poll.answers.values()) {
-                const text = answer.text;
-                if ((text ?? "").length < 1) continue;
-
+                const text = answer.text ?? "";
+                if (text.length == 0) continue;
                 
-                const role = roles.find(role => role.name === `${text}グループ`);
+                const role = roles.find(r => roleIsMatchedForAnswer(r, text));
                 if (role === undefined) {
                     await interaction.followUp({ 
-                        content: `選択肢「${text}」に対応するロール「${text}グループ」が見つかりませんでした。`,
+                        content: `選択肢「${text}」に対応するロールが見つかりませんでした。`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                    continue;
+                }
+                if (!isGroupRole(role)) {
+                    await interaction.followUp({
+                        content: `「${role.name}」はグループ用のロールではありません。`,
                         flags: MessageFlags.Ephemeral
                     });
                     continue;
@@ -178,7 +189,7 @@ ${toMentions(membersHasNoRoles)}`
                     }
                 }
 
-                await interaction.followUp({ content: `「${text}グループ」の割り当てを行いました。`, flags: MessageFlags.Ephemeral });
+                await interaction.followUp({ content: `「${role.name}」の割り当てを行いました。`, flags: MessageFlags.Ephemeral });
                 await setTimeout(200);
             }
             await interaction.followUp({ content: "すべての割り当てが完了しました。", flags: MessageFlags.Ephemeral });
